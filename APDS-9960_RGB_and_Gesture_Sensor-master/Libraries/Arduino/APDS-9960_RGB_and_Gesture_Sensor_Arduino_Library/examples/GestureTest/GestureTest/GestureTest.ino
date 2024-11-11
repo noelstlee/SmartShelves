@@ -49,7 +49,7 @@ Distributed as-is; no warranty is given.
 #include <SparkFun_APDS9960.h>
 
 // Pins
-#define APDS9960_INT    13 // Needs to be an interrupt pin
+#define APDS9960_INT    2 // Needs to be an interrupt pin
 
 // Constants
 
