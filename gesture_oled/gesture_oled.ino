@@ -1,9 +1,11 @@
 #include <AccelStepper.h>
 #include <SparkFun_APDS9960.h>
+#include <SFE_MicroOLED.h>
 
 // Stepper motor to complete one revolution: 2038 steps
 #define APDS9960_INT 2
 #define MotorInterfaceType 4
+#define PIN_RESET 9
 
 // Motor control variables
 SparkFun_APDS9960 apds = SparkFun_APDS9960();
@@ -19,8 +21,26 @@ AccelStepper stepper2(MotorInterfaceType, 4, 5, 6, 7);
 long initialPositionMotor1 = 0;
 long initialPositionMotor2 = 0;
 
+// OLED instance
+MicroOLED oled(PIN_RESET);
+
+// Track idle state
+unsigned long lastGestureTime = 0; // Timestamp of the last gesture
+const unsigned long idleDelay = 3000; // Delay (in ms) before displaying "Idle"
+
 void setup() {
   Serial.begin(9600);
+
+  // Initialize OLED display
+  oled.begin(0x3D, Wire);    // Initialize OLED (0x3D I2C address)
+  oled.clear(ALL);           // Clear the display's internal memory
+  oled.display();            // Display splash screen
+  delay(1000);               // Wait 1 second
+
+  // Display welcome message
+  displayMessage("WELCOME");
+  delay(2000); // Keep welcome text for 2 seconds
+  oled.clear(PAGE); // Clear the OLED for further use
 
   // Initialize gesture sensor
   pinMode(APDS9960_INT, INPUT);
@@ -57,11 +77,20 @@ void loop() {
     handleGesture();
     isr_flag = 0;
     attachInterrupt(digitalPinToInterrupt(APDS9960_INT), interruptRoutine, FALLING);
+
+    // Update last gesture time
+    lastGestureTime = millis();
   }
 
   // Run stepper motors
   stepper1.run();
   stepper2.run();
+
+  // Check for idle state
+  if (millis() - lastGestureTime > idleDelay) {
+    displayMessage("Idle");
+    lastGestureTime = millis(); // Prevent repeated updates
+  }
 }
 
 void interruptRoutine() {
@@ -72,24 +101,30 @@ void handleGesture() {
   if (apds.isGestureAvailable()) {
     int gesture = apds.readGesture();
     if (gesture == DIR_UP) {
-      Serial.println("Gesture: UP - Activating Motor 1");
+      Serial.println("Gesture: UP - Activating Motor 1 (Upper Shelf)");
       motor1_active = true;
       motor2_active = false;
+      displayMessage("Upper Shelf");
     } else if (gesture == DIR_DOWN) {
-      Serial.println("Gesture: DOWN - Activating Motor 2");
+      Serial.println("Gesture: DOWN - Activating Motor 2 (Lower Shelf)");
       motor1_active = false;
       motor2_active = true;
+      displayMessage("Lower Shelf");
     } else if (gesture == DIR_LEFT) {
       Serial.println("Gesture: LEFT - Rotating 120° clockwise");
       rotateMotor(motor1_active, true); // Rotate clockwise
+      displayMessage("LEFT");
     } else if (gesture == DIR_RIGHT) {
       Serial.println("Gesture: RIGHT - Rotating 120° counterclockwise");
       rotateMotor(motor1_active, false); // Rotate counterclockwise
+      displayMessage("RIGHT");
     } else if (gesture == DIR_FAR) {
-      Serial.println("Gesture: FAR - Returning to initial position");
+      Serial.println("Gesture: FAR - Returning to initial position (Reset)");
       returnToInitialPosition(motor1_active); // Go back to initial position
+      displayMessage("Reset");
     } else {
-      Serial.println("Gesture: NONE");
+      Serial.println("Gesture: NONE - Gesture Not Recognized");
+      displayMessage("Gesture Not Recognized");
     }
   }
 }
@@ -136,4 +171,12 @@ void returnToInitialPosition(bool motor1) {
   } else {
     Serial.println("Motor is already at the initial position.");
   }
+}
+
+void displayMessage(const char *message) {
+  oled.setFontType(1);       // Set font type
+  oled.clear(PAGE);          // Clear the buffer
+  oled.setCursor(0, 0);      // Set the cursor to the top-left corner
+  oled.print(message);       // Display the message
+  oled.display();            // Update the OLED
 }
