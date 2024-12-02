@@ -1,49 +1,74 @@
-// Define pins for stepper motor 1
-int coil1_1 = 8;
-int coil1_2 = 9;
-int coil1_3 = 10;
-int coil1_4 = 11;
+#include <AccelStepper.h>
+#include <SparkFun_APDS9960.h>
+#include <SFE_MicroOLED.h>
 
-// Define pins for stepper motor 2
-int coil2_1 = 4;
-int coil2_2 = 5;
-int coil2_3 = 6;
-int coil2_4 = 7;
+// Stepper motor to complete one revolution: 2038 steps
+#define APDS9960_INT 2
+#define MotorInterfaceType 4
+#define PIN_RESET -1
 
-// Constants
-const int stepsPerRevolution = 516; // Steps for 360° for a 2048-step motor
-const int delayTime = 3; // Delay for motor speed control
+// Motor control variables
+SparkFun_APDS9960 apds = SparkFun_APDS9960();
+volatile int isr_flag = 0;
+int motorActive = 0; // 0 for Bottom, 1 for Top
+bool isSpinning = false;
+bool gesturePending = false;
 
+const int rotation = 680;
 
-// Inputs from ESP-32
-int webIsReadyPin = 53;
-int webShelfPin = 51;
-int webDirectionPin = 49;
+AccelStepper stepperTop(MotorInterfaceType, 8, 10, 9, 11);
+AccelStepper stepperBot(MotorInterfaceType, 4, 6, 5, 7);
+
+long initPosTop = 0;
+long initPosBot = 0;
+
+MicroOLED oled(PIN_RESET);
+
+unsigned long lastGestureTime = 0;
+const unsigned long idleDelay = 5000;
+
+// ESP-32 Controls
+const int webIsReadyPin = 53;
+const int webShelfPin = 51;
+const int webDirectionPin = 49;
 
 // Outputs to ESP-32
-int isSpinningPin = 52;
-int ack = 50;
+const int isSpinningPin = 52;
+const int ack = 50;
 
-bool isSpinning = false;
-
-
-int stepSequence[4][4] = {
-  {1, 0, 0, 0},
-  {0, 1, 0, 0},
-  {0, 0, 1, 0},
-  {0, 0, 0, 1} 
-};
+// State flags for Wi-Fi commands
+bool wifiCommandProcessed = false;
 
 void setup() {
-  pinMode(coil1_1, OUTPUT);
-  pinMode(coil1_2, OUTPUT);
-  pinMode(coil1_3, OUTPUT);
-  pinMode(coil1_4, OUTPUT);
+  Serial.begin(9600);
 
-  pinMode(coil2_1, OUTPUT);
-  pinMode(coil2_2, OUTPUT);
-  pinMode(coil2_3, OUTPUT);
-  pinMode(coil2_4, OUTPUT);
+  oled.begin(0x3D, Wire);
+  oled.clear(ALL);
+  oled.display();
+  delay(1000);
+
+  displayMessage("WELCOME");
+  delay(2000);
+  oled.clear(PAGE);
+
+  pinMode(APDS9960_INT, INPUT);
+  attachInterrupt(digitalPinToInterrupt(APDS9960_INT), interruptRoutine, FALLING);
+
+  if (apds.init()) Serial.println("Gesture sensor initialized.");
+  else Serial.println("Gesture sensor initialization failed!");
+
+  if (apds.enableGestureSensor(true)) Serial.println("Gesture sensor enabled.");
+  else Serial.println("Gesture sensor enable failed!");
+
+  stepperBot.setCurrentPosition(0);
+  stepperBot.setMaxSpeed(1000.0);
+  stepperBot.setAcceleration(200.0);
+  initPosBot = stepperBot.currentPosition();
+
+  stepperTop.setCurrentPosition(0);
+  stepperTop.setMaxSpeed(1000.0);
+  stepperTop.setAcceleration(200.0);
+  initPosTop = stepperTop.currentPosition();
 
   pinMode(webIsReadyPin, INPUT);
   pinMode(webShelfPin, INPUT);
@@ -57,58 +82,109 @@ void setup() {
 }
 
 void loop() {
-  if (isSpinning == false) {
-    if (digitalRead(webIsReadyPin) == HIGH) {
-      digitalWrite(isSpinningPin, HIGH);
-      digitalWrite(ack, HIGH);
-      if (digitalRead(webShelfPin) == LOW) {
-        if (digitalRead(webDirectionPin) == LOW) {
-          rotateMotor(false, true);
-        } else {
-          rotateMotor(false, false);
-        }
-      } else if (digitalRead(webShelfPin) == HIGH) {
-        if (digitalRead(webDirectionPin) == LOW) {
-          rotateMotor(true, true); 
-        } else {
-          rotateMotor(true, false);
-        }
-      }
+  // Check if motors are spinning
+  isSpinning = (stepperBot.distanceToGo() != 0 || stepperTop.distanceToGo() != 0);
+  digitalWrite(isSpinningPin, isSpinning);
+
+  if (!isSpinning) {
+    if (gesturePending) {
+      handleGesture();
+      gesturePending = false;
     }
-    digitalWrite(ack, LOW);
-    digitalWrite(isSpinningPin, LOW);
-    isSpinning = false;
+
+    if (!wifiCommandProcessed && digitalRead(webIsReadyPin) == HIGH) {
+      handleWiFiControl();
+      wifiCommandProcessed = true;
+    }
+  } else {
+    wifiCommandProcessed = false; // Reset flag when spinning
   }
-}
-// Function to rotate the specified motor in the given direction for 120 degrees
-void rotateMotor(bool motor1, bool clockwise) {
-  int steps = 165; // Calculate steps for 120 degrees
-  for (int i = 0; i < steps; i++) {
-    if (clockwise) {
-      for (int step = 0; step < 4; step++) {
-        setCoils(stepSequence[step], motor1);
-        delay(delayTime);
-      }
-    } else {
-      for (int step = 3; step >= 0; step--) {
-        setCoils(stepSequence[step], motor1);
-        delay(delayTime);
-      }
-    }
+
+  stepperBot.run();
+  stepperTop.run();
+
+  if (millis() - lastGestureTime > idleDelay && !isSpinning) {
+    displayMessage("Idle");
+    lastGestureTime = millis();
   }
 }
 
-// Function to activate coils based on step sequence
-void setCoils(int step[4], bool motor1) {
-  if (motor1) {
-    digitalWrite(coil1_1, step[0]);
-    digitalWrite(coil1_2, step[1]);
-    digitalWrite(coil1_3, step[2]);
-    digitalWrite(coil1_4, step[3]);
+void interruptRoutine() {
+  gesturePending = true;
+}
+
+void handleGesture() {
+  int gesture = apds.readGesture();
+  if (gesture == DIR_UP) {
+    motorActive = 1;
+    displayMessage("Upper Shelf");
+  } else if (gesture == DIR_DOWN) {
+    motorActive = 0;
+    displayMessage("Lower Shelf");
+  } else if (gesture == DIR_LEFT) {
+    rotateMotor(motorActive, true);
+    displayMessage("LEFT");
+  } else if (gesture == DIR_RIGHT) {
+    rotateMotor(motorActive, false);
+    displayMessage("RIGHT");
+  } else if (gesture == DIR_FAR) {
+    returnToInitialPosition(motorActive);
+    displayMessage("Reset");
   } else {
-    digitalWrite(coil2_1, step[0]);
-    digitalWrite(coil2_2, step[1]);
-    digitalWrite(coil2_3, step[2]);
-    digitalWrite(coil2_4, step[3]);
+    displayMessage("Gesture Not Recognized");
   }
+}
+
+void handleWiFiControl() {
+  digitalWrite(ack, HIGH);
+
+  bool isBottomShelf = (digitalRead(webShelfPin) == LOW);
+  bool isLeftDirection = (digitalRead(webDirectionPin) == LOW);
+
+  // Display messages for Wi-Fi actions
+  if (isBottomShelf) {
+    displayMessage(isLeftDirection ? "Left" : "Right");
+  } else {
+    displayMessage(isLeftDirection ? "Left" : "Right");
+  }
+
+  // Serial.print("Wi-Fi Shelf: ");
+  // Serial.print(isBottomShelf ? "Bottom" : "Top");
+  // Serial.print(" Direction: ");
+  // Serial.println(isLeftDirection ? "Left" : "Right");
+
+  if (isBottomShelf) {
+    rotateMotor(0, isLeftDirection);
+  } else {
+    rotateMotor(1, isLeftDirection);
+  }
+
+  digitalWrite(ack, LOW);
+}
+
+void rotateMotor(int motor1, bool clockwise) {
+  isSpinning = true;
+  digitalWrite(isSpinningPin, HIGH);
+  AccelStepper &stepper = motor1 == 0 ? stepperBot : stepperTop;
+  stepper.moveTo(stepper.currentPosition() + (clockwise ? rotation : -rotation));
+}
+
+void returnToInitialPosition(int motor1) {
+  isSpinning = true;
+  digitalWrite(isSpinningPin, HIGH);
+  AccelStepper &stepper = motor1 == 0 ? stepperBot : stepperTop;
+
+  long targetPosition = motor1 == 0 ? initPosBot : initPosTop;
+
+  if (stepper.currentPosition() != targetPosition) {
+    stepper.moveTo(targetPosition);
+  }
+}
+
+void displayMessage(const char *message) {
+  oled.setFontType(1);
+  oled.clear(PAGE);
+  oled.setCursor(0, 0);
+  oled.print(message);
+  oled.display();
 }
