@@ -13,7 +13,7 @@ bool motor2_active = false;
 
 // Creates instances of AccelStepper for two motors
 AccelStepper stepper1(MotorInterfaceType, 8, 10, 9, 11);
-AccelStepper stepper2(MotorInterfaceType, 4, 5, 6, 7);
+AccelStepper stepper2(MotorInterfaceType, 4, 6, 5, 7);
 
 // Store initial positions
 long initialPositionMotor1 = 0;

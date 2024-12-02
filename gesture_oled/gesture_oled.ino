@@ -5,7 +5,6 @@
 // Stepper motor to complete one revolution: 2038 steps
 #define APDS9960_INT 2
 #define MotorInterfaceType 4
-#define PIN_RESET 9
 
 // Motor control variables
 SparkFun_APDS9960 apds = SparkFun_APDS9960();
@@ -13,16 +12,18 @@ volatile int isr_flag = 0;
 bool motor1_active = false;
 bool motor2_active = false;
 
+int rotation;
+
 // Creates instances of AccelStepper for two motors
 AccelStepper stepper1(MotorInterfaceType, 8, 10, 9, 11);
-AccelStepper stepper2(MotorInterfaceType, 4, 5, 6, 7);
+AccelStepper stepper2(MotorInterfaceType, 4, 6, 5, 7);
 
 // Store initial positions
 long initialPositionMotor1 = 0;
 long initialPositionMotor2 = 0;
 
 // OLED instance
-MicroOLED oled(PIN_RESET);
+MicroOLED oled(-1);
 
 // Track idle state
 unsigned long lastGestureTime = 0; // Timestamp of the last gesture
@@ -130,28 +131,16 @@ void handleGesture() {
 }
 
 void rotateMotor(bool motor1, bool clockwise) {
-  checkPosition(); // Ensure the motor's position is within bounds
+  if (clockwise) {
+      rotation = 680;
+  } else {
+      rotation = -680;
+  }
 
   if (motor1) {
-    stepper1.moveTo(stepper1.currentPosition() + (clockwise ? 680 : -680));
+    stepper1.moveTo(stepper1.currentPosition() + rotation);
   } else {
-    stepper2.moveTo(stepper2.currentPosition() + (clockwise ? 680 : -680));
-  }
-}
-
-void checkPosition() {
-  // Ensure stepper1 stays within valid positions
-  if (stepper1.currentPosition() > 2038) {
-    stepper1.setCurrentPosition(0);
-  } else if (stepper1.currentPosition() < -2038) {
-    stepper1.setCurrentPosition(-2038);
-  }
-
-  // Ensure stepper2 stays within valid positions
-  if (stepper2.currentPosition() > 2038) {
-    stepper2.setCurrentPosition(0);
-  } else if (stepper2.currentPosition() < -2038) {
-    stepper2.setCurrentPosition(-2038);
+    stepper2.moveTo(stepper2.currentPosition() + rotation);
   }
 }
 
