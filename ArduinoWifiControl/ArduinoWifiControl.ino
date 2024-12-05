@@ -9,7 +9,6 @@
 
 // Motor control variables
 SparkFun_APDS9960 apds = SparkFun_APDS9960();
-volatile int isr_flag = 0;
 bool isSpinning = false;
 bool gestureReady = false;
 bool crazyMode = false;
@@ -27,12 +26,12 @@ long initPosBot = 0;
 MicroOLED oled(PIN_RESET);
 
 unsigned long lastActionTime = 0;
-const unsigned long idleDelay = 3000;
+const unsigned long idleDelay = 1000;
 
 // ESP-32 Controls
 const int webIsReadyPin = 25;
 const int webShelfPin = 27;
-const int webDirectionPin = 2 9;
+const int webDirectionPin = 29;
 const int webCrazyPin = 28;
 
 // Outputs to ESP-32
@@ -48,7 +47,6 @@ const int botLight = 23;
 
 void setup() {
   Serial.begin(9600);
-
   oled.begin(0x3D, Wire);
   oled.clear(ALL);
   oled.display();
@@ -61,11 +59,8 @@ void setup() {
   pinMode(APDS9960_INT, INPUT);
   attachInterrupt(digitalPinToInterrupt(APDS9960_INT), interruptRoutine, FALLING);
 
-  if (apds.init()) Serial.println("Gesture sensor initialized.");
-  else Serial.println("Gesture sensor initialization failed!");
-
-  if (apds.enableGestureSensor(true)) Serial.println("Gesture sensor enabled.");
-  else Serial.println("Gesture sensor enable failed!");
+  apds.init();
+  apds.enableGestureSensor(true);
 
   stepperBot.setCurrentPosition(0);
   stepperBot.setMaxSpeed(1000.0);
@@ -179,26 +174,19 @@ void handleGesture() {
 void handleWiFiControl() {
   bool isBottomShelf = (digitalRead(webShelfPin) == LOW);
   bool isLeftDirection = (digitalRead(webDirectionPin) == LOW);
-  bool isCrazy = (digitalRead(crazyPin) == HIGH);
-
   digitalWrite(ack, HIGH);
 
   // Display messages for Wi-Fi actions
-  if (isCrazy) {
-    rotateMotor(1, 1, true);
+  if (isBottomShelf) {
+    displayMessage(isLeftDirection ? "Left" : "Right");
   } else {
-    if (isBottomShelf) {
-      displayMessage(isLeftDirection ? "Left" : "Right");
-    } else {
-      displayMessage(isLeftDirection ? "Left" : "Right");
-    }
+    displayMessage(isLeftDirection ? "Left" : "Right");
+  }
 
-    if (isBottomShelf) {
-      rotateMotor(1, isLeftDirection, false);
-    } else {
-      rotateMotor(2, isLeftDirection, false);
-    }
-
+  if (isBottomShelf) {
+    rotateMotor(1, isLeftDirection, false);
+  } else {
+    rotateMotor(2, isLeftDirection, false);
   }
   digitalWrite(ack, LOW);
 }

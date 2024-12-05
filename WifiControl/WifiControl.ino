@@ -15,7 +15,6 @@ String header;
 const int readyPin = 21;        // HIGH when button is pressed, Low when arduino sends an ACK
 const int shelfPin = 22;        // LOW = Bottom, HIGH = TOP
 const int directionPin = 19;    // LOW = Left, HIGH = Right
-const int crazyPin = 33;        // HIGH = Crazy Mode Selected
 
 // Input from Arduino
 const int isSpinningPin = 26;   // Indicates whether the shelf is currently spinning
@@ -39,12 +38,10 @@ void setup() {
   pinMode(readyPin, OUTPUT);
   pinMode(shelfPin, OUTPUT);
   pinMode(directionPin, OUTPUT);
-  pinMode(crazyPin, OUTPUT);
 
   digitalWrite(readyPin, LOW);
   digitalWrite(shelfPin, LOW);
   digitalWrite(directionPin, LOW);
-  digitalWrite(crazyPin, LOW);
 
 
   WiFi.softAP(ssid,password);
@@ -62,7 +59,6 @@ void loop() {
   // Sets readyPin low when it is acknowledged
   if (digitalRead(ack) == HIGH) {
     digitalWrite(readyPin, LOW);
-    digitalWrite(crazyPin, LOW);
   }
 
   if (client) {                             // If a new client connects,
@@ -107,9 +103,6 @@ void loop() {
                 digitalWrite(shelfPin, LOW);
                 digitalWrite(directionPin, HIGH);
                 digitalWrite(readyPin, HIGH);
-              } else if (header.indexOf("GET /crazy/on") >= 0) {
-                digitalWrite(crazyPin, HIGH);
-                digitalWrite(readyPin, HIGH);
               }
             }
 
@@ -122,7 +115,7 @@ void loop() {
             client.println(".grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; justify-content: center; }");
             client.println(".button { background-color: yellowgreen; border: none; color: white; padding: 16px 40px;");
             client.println("text-decoration: none; font-size: 32px; margin: 2px; cursor: pointer;}");
-            client.println(".full-width { grid-column: span 2; text-align: center; }");
+            client.println(".full-width { grid-column: span 2; text-align: center;} </style></head>");
 
             client.println("<body><h1>Smart Shelves</h1>");
             
@@ -138,7 +131,6 @@ void loop() {
               client.println("<p><a href=\"/botLeft/on\"><button class=\"button\"> &lt; </button></a></p>");
               client.println("<p><a href=\"/botRight/on\"><button class=\"button\"> &gt; </button></a></p>");
               client.println("</div>");
-              client.println("<p><a href=\"/crazy/on\"><button class=\"button\"> Random </button></a></p>");
             } else {
               // Displays Spinning text and refresh button when shelf is spinning
               client.println("<h2>Spinning...<h2>");
@@ -154,7 +146,6 @@ void loop() {
             // Sets readyPin low when it is acknowledged
             if (digitalRead(ack) == HIGH) {
               digitalWrite(readyPin, LOW);
-              digitalWrite(crazyPin, LOW);
             }
 
             // Break out of the while loop
