@@ -115,8 +115,7 @@ void loop() {
             client.println(".grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; justify-content: center; }");
             client.println(".button { background-color: yellowgreen; border: none; color: white; padding: 16px 40px;");
             client.println("text-decoration: none; font-size: 32px; margin: 2px; cursor: pointer;}");
-            client.println(".full-width { grid-column: span 2; text-align: center; }");
-            client.println(".button2 {background-color: gray;}</style></head>");
+            client.println(".full-width { grid-column: span 2; text-align: center;} </style></head>");
 
             client.println("<body><h1>Smart Shelves</h1>");
             
