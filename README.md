@@ -10,6 +10,8 @@ Key features include:
 
 The following code files contribute to the core functionality of Smart Shelves:  
 
+---
+
 ### Control.ino  
 This code allows users to control two stepper motors via serial commands. Using an intuitive input format, users can specify the motor number, direction, and rotation angle in degrees. The implementation features:  
 
@@ -23,6 +25,8 @@ This code allows users to control two stepper motors via serial commands. Using 
 - **Dual Motor Operation**: Independently controls two motors, each with separate input and coil configurations.  
 
 This file is ideal for scenarios requiring straightforward motor control with precise angle adjustments and directional inputs.  
+
+---
 
 ### gesture_motor.ino  
 
@@ -49,6 +53,8 @@ This file implements gesture-based control for two stepper motors using the **Sp
   - Ensures stable operation with configurable motor delay and step count for full revolutions.  
 
 This file highlights the project’s interactive capabilities, enabling real-time gesture recognition and motor control for dynamic shelf operation.  
+
+---
 
 ### WifiControl.ino  
 This file establishes Wi-Fi connectivity for the Smart Shelves system and allows remote control via a web-based interface. It integrates ESP32 capabilities to provide an intuitive user experience with the following features:  
